@@ -16,19 +16,47 @@ exports.createUser = functions.firestore
         prueba: "Success!!!"
     }, { merge: true });
 });
+exports.addMoney = functions.firestore
+    .document('savings/{savingId}/users/{userId}/record/{recordId}')
+    .onWrite(event => {
+    const SAVING_ID = event.params.savingId;
+    const USER_ID = event.params.userId;
+    // const RECORD_ID = event.params.recordId;
+    const data = event.data.data();
+    const prevData = event.data.previous.data();
+    if (data.money == prevData.money) {
+        return Promise.reject;
+    }
+    const setDate = event.data.ref.set({
+        date: new Date()
+    }, { merge: true });
+    const userRef = firestore.doc(`savings/${SAVING_ID}/users/${USER_ID}`);
+    const setRecordTotal = firestore.runTransaction(t => {
+        return t.get(userRef)
+            .then(doc => {
+            let total = doc.data().totalMoney;
+            if (!total)
+                total = 0;
+            total += data.money - prevData.money;
+            t.set(userRef, { totalMoney: total }, { merge: true });
+        });
+    });
+    return Promise.all([setRecordTotal, setDate]);
+});
 exports.removeUserFromSaving = functions.firestore
     .document('savings/{savingId}/users/{userId}')
     .onDelete(event => {
-    const savingRef = firestore.doc(`savings/${event.params.savingId}`);
-    const userRef = firestore.doc(`users/${event.params.userId}`);
-    // const setUserSaving = firestore.doc(`users/${event.params.userId}`).set(data, { merge: true })
+    const SAVING_ID = event.params.savingId;
+    const USER_ID = event.params.userId;
+    const savingRef = firestore.doc(`savings/${SAVING_ID}`);
+    const userRef = firestore.doc(`users/${USER_ID}`);
     const setUserSaving = firestore.runTransaction(t => {
         return t.get(userRef)
             .then(doc => {
             const savingsArr = doc.data().savings;
             if (!savingsArr)
                 return;
-            savingsArr.splice(savingsArr.indexOf(event.params.savingId));
+            savingsArr.splice(savingsArr.indexOf(SAVING_ID));
             t.set(userRef, { savings: savingsArr }, { merge: true });
         });
     });
@@ -44,9 +72,10 @@ exports.removeUserFromSaving = functions.firestore
 exports.addUserToSaving = functions.firestore
     .document('savings/{savingId}/users/{userId}')
     .onCreate(event => {
-    const savingRef = firestore.doc(`savings/${event.params.savingId}`);
-    const userRef = firestore.doc(`users/${event.params.userId}`);
-    // const setUserSaving = firestore.doc(`users/${event.params.userId}`).set(data, { merge: true })
+    const SAVING_ID = event.params.savingId;
+    const USER_ID = event.params.userId;
+    const savingRef = firestore.doc(`savings/${SAVING_ID}`);
+    const userRef = firestore.doc(`users/${USER_ID}`);
     const setUserSaving = firestore.runTransaction(t => {
         return t.get(userRef)
             .then(doc => {
@@ -54,7 +83,7 @@ exports.addUserToSaving = functions.firestore
             if (!savingsArr) {
                 savingsArr = [];
             }
-            savingsArr.push(event.params.savingId);
+            savingsArr.push(SAVING_ID);
             t.set(userRef, { savings: savingsArr }, { merge: true });
         });
     });
