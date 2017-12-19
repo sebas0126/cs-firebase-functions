@@ -20,21 +20,21 @@ exports.createUser = functions.firestore
   });
 
 exports.addMoney = functions.firestore
-  .document('savings/{savingId}/users/{userId}/record/{recordId}')
+  .document('savings/{savingId}/users/{userId}/records/{recordId}')
   .onWrite(event => {
     const SAVING_ID = event.params.savingId;
     const USER_ID = event.params.userId;
     // const RECORD_ID = event.params.recordId;
 
     const data = event.data.data();
-    const prevData = event.data.previous.data();
-    if (data.money == prevData.money){
-       return Promise.reject;
+    let prevData = { money: 0 };
+    if (event.data.previous.exists) {
+      prevData = event.data.previous.data();
     }
-    
-    const setDate = event.data.ref.set({
-      date: new Date()
-    }, {merge: true})
+
+    if (data.money == prevData.money) {
+      return Promise.reject;
+    }
 
     const userRef = firestore.doc(`savings/${SAVING_ID}/users/${USER_ID}`);
     const setRecordTotal = firestore.runTransaction(t => {
@@ -46,7 +46,7 @@ exports.addMoney = functions.firestore
           t.set(userRef, { totalMoney: total }, { merge: true });
         })
     })
-    return Promise.all([setRecordTotal, setDate]);
+    return setRecordTotal;
   });
 
 exports.removeUserFromSaving = functions.firestore
