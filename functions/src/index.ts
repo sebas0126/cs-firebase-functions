@@ -5,10 +5,28 @@ admin.initializeApp(functions.config().firebase);
 
 const firestore = admin.firestore();
 
+
+const setTotal = function(ref, data, prevData){
+  return firestore.runTransaction(t => {
+    return t.get(ref)
+      .then(doc => {
+        let total = doc.data().totalMoney;
+        if (!total) total = 0;
+        total += data.money - prevData.money;
+        t.set(ref, { totalMoney: total }, { merge: true });
+      })
+  })
+}
+
 //Get
 export const helloWorld = functions.https.onRequest((request, response) => {
   response.send("Hello from Firebase!");
 });
+
+exports.monthly_job =
+  functions.pubsub.topic('monthly-tick').onPublish((event) => {
+    console.log("This job is ran every month!")
+  });
 
 exports.createUser = functions.firestore
   .document('users/{userId}')
@@ -28,7 +46,7 @@ exports.addMoney = functions.firestore
 
     const data = event.data.data();
     let prevData = { money: 0 };
-    if (event.data.previous.exists) {
+    if (event.data.previous && event.data.previous.exists) {
       prevData = event.data.previous.data();
     }
 
@@ -37,16 +55,17 @@ exports.addMoney = functions.firestore
     }
 
     const userRef = firestore.doc(`savings/${SAVING_ID}/users/${USER_ID}`);
-    const setRecordTotal = firestore.runTransaction(t => {
+    const savingRef = firestore.doc(`savings/${SAVING_ID}`);
+    const setUserTotal = setTotal(userRef, data, prevData);
+    const setSavingTotal = setTotal(savingRef, data, prevData);
+    const setLastRecord = firestore.runTransaction(t => {
       return t.get(userRef)
         .then(doc => {
-          let total = doc.data().totalMoney;
-          if (!total) total = 0;
-          total += data.money - prevData.money;
-          t.set(userRef, { totalMoney: total }, { merge: true });
+          t.set(userRef, { lastRecord: data }, {merge: true});
         })
     })
-    return setRecordTotal;
+
+    return Promise.all([setUserTotal, setSavingTotal, setLastRecord]);
   });
 
 exports.removeUserFromSaving = functions.firestore
