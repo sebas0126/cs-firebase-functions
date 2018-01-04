@@ -4,6 +4,20 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 admin.initializeApp(functions.config().firebase);
 const firestore = admin.firestore();
+const daysInMonth = function (dayCode) {
+    const todayDate = new Date();
+    const year = todayDate.getFullYear();
+    const month = todayDate.getMonth();
+    const monthDays = new Date(year, month + 1, 0).getDate();
+    let count = 0;
+    for (let i = 1; i <= monthDays; i++) {
+        const date = new Date(year, month, i);
+        if (date.getDay() === dayCode) {
+            count++;
+        }
+    }
+    return count;
+};
 const setTotal = function (ref, data, prevData) {
     return firestore.runTransaction(t => {
         return t.get(ref)
@@ -20,9 +34,23 @@ const setTotal = function (ref, data, prevData) {
 exports.helloWorld = functions.https.onRequest((request, response) => {
     response.send("Hello from Firebase!");
 });
-exports.monthly_job =
-    functions.pubsub.topic('monthly-tick').onPublish((event) => {
-        console.log("This job is ran every month!");
+exports.monthly_job_1st =
+    functions.pubsub.topic('monthly-tick-1').onPublish((event) => {
+        const sundays = daysInMonth(0);
+        const fridays = daysInMonth(5);
+        const month = new Date().getMonth();
+        const savingsMetadataRef = firestore.doc('savings/metadata');
+        const setLoop = firestore.runTransaction(t => {
+            return t.get(savingsMetadataRef)
+                .then(doc => {
+                t.set(savingsMetadataRef, { loop: month, raffles: fridays, weeks: sundays }, { merge: true });
+            });
+        });
+        return setLoop;
+    });
+exports.monthly_job_15th =
+    functions.pubsub.topic('monthly-tick-15').onPublish((event) => {
+        console.log("This job is ran every month at 15th!");
     });
 exports.createUser = functions.firestore
     .document('users/{userId}')
@@ -43,7 +71,7 @@ exports.addMoney = functions.firestore
     if (event.data.previous && event.data.previous.exists) {
         prevData = event.data.previous.data();
     }
-    if (data.money == prevData.money) {
+    if (data.money === prevData.money) {
         return Promise.reject;
     }
     const userRef = firestore.doc(`savings/${SAVING_ID}/users/${USER_ID}`);

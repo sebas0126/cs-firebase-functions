@@ -11,6 +11,10 @@ cron:
 #   url: /publish/weekly-tick
 #   schedule: every saturday 00:00
 
-- description: Push a "tick" onto pubsub every month
-  url: /publish/monthly-tick
-  schedule: 7 of month 00:00
+- description: Push a "tick" onto pubsub every 15th of the month
+  url: /publish/monthly-tick-15
+  schedule: 15 of month 00:01
+
+- description: Push a "tick" onto pubsub every 1st of the month
+  url: /publish/monthly-tick-1
+  schedule: 1 of month 00:01
