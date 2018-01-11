@@ -11,9 +11,9 @@ const daysInMonth = function (dayCode) {
   const month = todayDate.getMonth();
   const monthDays = new Date(year, month + 1, 0).getDate();
   let count = 0;
-  for(let i = 1; i <= monthDays; i++){
+  for (let i = 1; i <= monthDays; i++) {
     const date = new Date(year, month, i);
-    if(date.getDay() === dayCode){
+    if (date.getDay() === dayCode) {
       count++;
     }
   }
@@ -107,9 +107,10 @@ exports.removeUserFromSaving = functions.firestore
     const setUserSaving = firestore.runTransaction(t => {
       return t.get(userRef)
         .then(doc => {
-          const savingsArr = doc.data().savings;
+          let savingsArr = doc.data().savings;
           if (!savingsArr) return;
-          savingsArr.splice(savingsArr.indexOf(SAVING_ID));
+          savingsArr = savingsArr.filter(obj => obj.id !== SAVING_ID)
+          // savingsArr.splice(savingsArr.indexOf(SAVING_ID));
           t.set(userRef, { savings: savingsArr }, { merge: true });
         })
     })
@@ -130,22 +131,28 @@ exports.addUserToSaving = functions.firestore
     const USER_ID = event.params.userId;
     const savingRef = firestore.doc(`savings/${SAVING_ID}`);
     const userRef = firestore.doc(`users/${USER_ID}`);
-    const setUserSaving = firestore.runTransaction(t => {
-      return t.get(userRef)
-        .then(doc => {
-          let savingsArr = doc.data().savings;
-          if (!savingsArr) {
-            savingsArr = [];
-          }
-          savingsArr.push(SAVING_ID);
-          t.set(userRef, { savings: savingsArr }, { merge: true });
-        })
-    })
+    let savingName: string;
     const setCount = firestore.runTransaction(t => {
       return t.get(savingRef)
         .then(doc => {
           const newCount = doc.data().userCount + 1;
           t.update(savingRef, { userCount: newCount });
+        })
+    })
+    const setUserSaving = firestore.runTransaction(t => {
+      return t.get(userRef)
+        .then(doc => {
+          return t.get(savingRef)
+          .then(docSav => {
+            savingName = docSav.data().name;
+            let savingsArr = doc.data().savings;
+            if (!savingsArr) {
+              savingsArr = [];
+            }
+            const objSaving = { id: SAVING_ID, name: savingName };
+            savingsArr.push(objSaving);
+            t.set(userRef, { savings: savingsArr }, { merge: true });
+          })
         })
     })
     return Promise.all([setUserSaving, setCount]);
